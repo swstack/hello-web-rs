@@ -8,7 +8,7 @@ Simple "database" for car information.
 
 Create a car (example):
 
-```
+```json
 Request:
 
 POST /cars
@@ -31,7 +31,7 @@ Response:
 
 Get a car
 
-```
+```json
 Request:
 
 GET /cars/1
@@ -44,4 +44,23 @@ Response:
     "model": "Camry",
     "year": 2000
 }
+```
+
+List cars
+
+```json
+Request:
+
+GET /cars
+
+Response:
+
+[
+  {
+    "id": 1,
+    "make": "Toyota",
+    "model": "Camry",
+    "year": 2000
+  }
+ ]
 ```
