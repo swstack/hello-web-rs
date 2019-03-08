@@ -1,18 +1,30 @@
 extern crate actix_web;
+extern crate rand;
+extern crate futures;
+extern crate serde;
+extern crate serde_json;
 
 pub mod models;
 
-use actix_web:: http;
-use actix_web:: server;
-use actix_web:: HttpRequest;
-use actix_web:: App;
-use actix_web:: Responder;
+use actix_web::http;
+use actix_web::http::StatusCode;
+use actix_web::Error;
+use actix_web::server;
+use actix_web::HttpRequest;
+use actix_web::HttpMessage;
+use actix_web::AsyncResponder;
+use actix_web::App;
+use actix_web::HttpResponse;
+use actix_web::Result;
 use std::collections::HashMap;
-use models::car::Car;
+use futures::Future;
+use futures::Stream;
+use rand::Rng;
+
+use crate::models::car::Car;
 
 struct CarDao {
     cars: HashMap<u32, Car>
-
 }
 
 impl CarDao {
@@ -29,21 +41,42 @@ impl CarDao {
     }
 }
 
-fn list_cars(req: &HttpRequest<CarDao>) -> impl Responder {
+fn list_cars(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
     println!("Listing cars...");
-    format!("")
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("application/json")
+        .body(""))
 }
 
-fn get_car(req: &HttpRequest<CarDao>) -> impl Responder {
-    let id = 5;
+fn get_car(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
+    let mut rng = rand::thread_rng();
+    let id: u32 = rng.gen_range(0, 100);
     println!("Getting car {}...", id);
-    format!("")
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("application/json")
+        .body(""))
 }
 
-fn create_car(req: &HttpRequest<CarDao>) -> impl Responder {
-    let id = 5;
+fn create_car_async(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    let mut rng = rand::thread_rng();
+    let id: u32 = rng.gen_range(0, 100);
     println!("Creating car {}...", id);
-    format!("")
+
+    req
+    .payload()
+    .concat2()
+    .from_err()
+    .and_then(|body| {
+        println!("{:?}", body);
+        let deserialized: Car = serde_json::from_str(std::str::from_utf8(&body).unwrap()).unwrap();
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        Ok(HttpResponse::build(StatusCode::OK)
+            .content_type("application/json")
+            .body(serialized))
+    })
+    .responder()
 }
 
 fn main() {
@@ -51,21 +84,9 @@ fn main() {
         App::with_state(CarDao { cars: HashMap::new() })
         .resource("/cars", |r| r.method(http::Method::GET).f(list_cars))
         .resource("/cars/{id}", |r| r.method(http::Method::GET).f(get_car))
-        .resource("/cars", |r| r.method(http::Method::POST).f(create_car))
+        .resource("/cars", |r| r.method(http::Method::POST).f(create_car_async))
     })
     .bind("127.0.0.1:8080")
     .unwrap()
     .run();
-
-//    server::new(
-//        App::with_state(AppState { counter: Cell::new(0) })
-//            .resource("/", |r| r.method(http::Method::GET).f(index))
-//
-//        || App::new()
-//            .route("/cars", http::Method::GET, index)
-//            .route("/cars/{id}", http::Method::GET, get_car)
-//            .route("/cars", http::Method::POST, create_car)
-//        )
-//        .bind("127.0.0.1:8080").unwrap()
-//        .run();
 }

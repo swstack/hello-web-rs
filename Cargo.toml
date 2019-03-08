@@ -5,4 +5,8 @@ authors = ["Stephen Stack <sfstack7500@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "0.7.18"
+actix-web = "0.7.0"
+serde = { version = "1.0", features = ["derive"] }
+rand = "0.6"
+futures = "0.1"
+serde_json = "1.0"
