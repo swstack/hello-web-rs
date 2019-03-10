@@ -82,9 +82,13 @@ fn create_car_async(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpResponse, 
 fn main() {
     server::new(|| {
         App::with_state(CarDao { cars: HashMap::new() })
-        .resource("/cars", |r| r.method(http::Method::GET).f(list_cars))
-        .resource("/cars/{id}", |r| r.method(http::Method::GET).f(get_car))
-        .resource("/cars", |r| r.method(http::Method::POST).f(create_car_async))
+        .resource("/cars", |r| {
+            r.method(http::Method::GET).f(list_cars);
+            r.method(http::Method::POST).f(create_car_async);
+        })
+        .resource("/cars/{id}", |r| {
+            r.method(http::Method::GET).f(get_car);
+        })
     })
     .bind("127.0.0.1:8080")
     .unwrap()
