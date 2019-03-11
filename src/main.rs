@@ -21,7 +21,8 @@ use futures::Future;
 use futures::Stream;
 use rand::Rng;
 
-use crate::models::car::Car;
+use crate::models::car::{Car, CarRequest};
+use std::io::Bytes;
 
 struct CarDao {
     cars: HashMap<u32, Car>
@@ -44,6 +45,7 @@ impl CarDao {
 fn list_cars(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
     println!("Listing cars...");
 
+//    let serialized = serde_json::to_string(&deserialized).unwrap();
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json")
         .body(""))
@@ -54,27 +56,35 @@ fn get_car(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
     let id: u32 = rng.gen_range(0, 100);
     println!("Getting car {}...", id);
 
+//    let serialized = serde_json::to_string(&deserialized).unwrap();
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json")
         .body(""))
 }
 
-fn create_car_async(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn create_car_async<'a>(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let mut rng = rand::thread_rng();
-    let id: u32 = rng.gen_range(0, 100);
+    let id: u32 =  rng.gen_range(0, 100);
     println!("Creating car {}...", id);
 
     req
     .payload()
     .concat2()
     .from_err()
-    .and_then(|body| {
-        println!("{:?}", body);
-        let deserialized: Car = serde_json::from_str(std::str::from_utf8(&body).unwrap()).unwrap();
-        let serialized = serde_json::to_string(&deserialized).unwrap();
+    .and_then(move |body| {
+        let body_string: &str = std::str::from_utf8(&body).unwrap();
+        let car_request: CarRequest = serde_json::from_str(body_string).unwrap();
+        let new_car: Car = Car {
+            id: id,
+            make: String::from(car_request.make),
+            model: String::from(car_request.model),
+            color: String::from(car_request.color),
+            year: 40
+        };
+
         Ok(HttpResponse::build(StatusCode::OK)
             .content_type("application/json")
-            .body(serialized))
+            .body(serde_json::to_string(&new_car).unwrap()))
     })
     .responder()
 }
