@@ -23,6 +23,7 @@ use rand::Rng;
 
 use crate::models::car::{Car, CarRequest};
 use std::io::Bytes;
+use std::sync::{Arc, Mutex};
 
 struct CarDao {
     cars: HashMap<u32, Car>
@@ -37,12 +38,13 @@ impl CarDao {
         true
     }
 
-    fn create(&self) -> bool {
+    fn create(&mut self, car: Car) -> bool {
+        self.cars.insert(car.id, car);
         true
     }
 }
 
-fn list_cars(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
+fn list_cars(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
     println!("Listing cars...");
 
 //    let serialized = serde_json::to_string(&deserialized).unwrap();
@@ -51,7 +53,7 @@ fn list_cars(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
         .body(""))
 }
 
-fn get_car(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
+fn get_car(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
     let mut rng = rand::thread_rng();
     let id: u32 = rng.gen_range(0, 100);
     println!("Getting car {}...", id);
@@ -62,10 +64,13 @@ fn get_car(req: &HttpRequest<CarDao>) -> Result<HttpResponse> {
         .body(""))
 }
 
-fn create_car_async<'a>(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn create_car_async(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+//    let mut car_dao: &mut CarDao = req.state();
     let mut rng = rand::thread_rng();
     let id: u32 =  rng.gen_range(0, 100);
     println!("Creating car {}...", id);
+
+    let car_dao = req.state().clone();
 
     req
     .payload()
@@ -82,16 +87,19 @@ fn create_car_async<'a>(req: &HttpRequest<CarDao>) -> Box<Future<Item=HttpRespon
             year: 40
         };
 
+        let response_body = serde_json::to_string(&new_car).unwrap();
+        car_dao.lock().unwrap().create(new_car);
+
         Ok(HttpResponse::build(StatusCode::OK)
             .content_type("application/json")
-            .body(serde_json::to_string(&new_car).unwrap()))
+            .body(response_body))
     })
     .responder()
 }
 
 fn main() {
     server::new(|| {
-        App::with_state(CarDao { cars: HashMap::new() })
+        App::with_state(Arc::new(Mutex::new(CarDao { cars: HashMap::new() })))
         .resource("/cars", |r| {
             r.method(http::Method::GET).f(list_cars);
             r.method(http::Method::POST).f(create_car_async);
