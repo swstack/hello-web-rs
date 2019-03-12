@@ -22,21 +22,49 @@ use futures::Stream;
 use rand::Rng;
 
 use crate::models::car::{Car, CarRequest};
-use std::io::Bytes;
 use std::sync::{Arc, Mutex};
+use std::iter::Take;
+
+struct CarsIterator<'a> {
+    cars: Vec<&'a Car>,
+    current: usize
+}
+
+impl<'a> CarsIterator<'a> {
+    fn new(cars: Vec<&'a Car>) -> CarsIterator {
+        return CarsIterator { cars, current: 0 }
+    }
+}
+
+impl<'a> Iterator for CarsIterator<'a> {
+    type Item = &'a Car;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.cars.len() {
+            None
+        }  else {
+            let car = self.cars[self.current];
+            self.current += 1;
+            Some(car)
+        }
+    }
+}
 
 struct CarDao {
     cars: HashMap<usize, Car>
 }
 
 impl CarDao {
-
-    fn get_all() {}
+    fn get_all(&self) -> CarsIterator {
+        let cars_vec: Vec<&Car> = self.cars.values().collect();
+        let cars_iter = CarsIterator::new(cars_vec);
+        return cars_iter
+    }
 
     fn delete() {}
 
-    fn get(&self, id: &usize) -> Result<&Car, String> {
-        match self.cars.get(id) {
+    fn get(&self, id: usize) -> Result<&Car, String> {
+        match self.cars.get(&id) {
             Some(car) => Ok(car),
             None => Err(format!("No car with id {}", id))
         }
@@ -57,9 +85,18 @@ impl CarDao {
 fn list_cars(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
     println!("Listing cars...");
 
+    let car_dao = req.state().clone();
+
+    let mut response_body = String::from("[");
+    for c in car_dao.lock().unwrap().get_all() {
+        response_body += serde_json::to_string(c).unwrap().as_str();
+        response_body += ","
+    }
+    response_body += "]";
+
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json")
-        .body(""))
+        .body(response_body))
 }
 
 fn get_car(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
@@ -68,7 +105,7 @@ fn get_car(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
 
     let car_dao = req.state().clone();
     let response_body: String;
-    match car_dao.lock().unwrap().get(&id.parse::<usize>().unwrap()) {
+    match car_dao.lock().unwrap().get(id.parse::<usize>().unwrap()) {
         Ok(car) => {
             response_body = serde_json::to_string(&car).unwrap();
         },
@@ -122,8 +159,9 @@ fn create_car_async(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Box<Future<Item=Ht
 }
 
 fn main() {
-    server::new(|| {
-        App::with_state(Arc::new(Mutex::new(CarDao { cars: HashMap::new() })))
+    let state  = Arc::new(Mutex::new(CarDao { cars: HashMap::new() }));
+    server::new(move || {
+        App::with_state(state.clone())
         .resource("/cars", |r| {
             r.method(http::Method::GET).f(list_cars);
             r.method(http::Method::POST).f(create_car_async);
