@@ -26,48 +26,65 @@ use std::io::Bytes;
 use std::sync::{Arc, Mutex};
 
 struct CarDao {
-    cars: HashMap<u32, Car>
+    cars: HashMap<usize, Car>
 }
 
 impl CarDao {
-    fn list(&self) -> bool {
-        true
+
+    fn get_all() {}
+
+    fn delete() {}
+
+    fn get(&self, id: &usize) -> Result<&Car, String> {
+        match self.cars.get(id) {
+            Some(car) => Ok(car),
+            None => Err(format!("No car with id {}", id))
+        }
     }
 
-    fn get(&self) -> bool {
-        true
-    }
-
-    fn create(&mut self, car: Car) -> bool {
-        self.cars.insert(car.id, car);
-        true
+    fn create(&mut self, car: Car) -> Result<Car, String> {
+        match self.cars.get(&car.id) {
+            Some(car) => Err(format!("Car id collision {}", &car.id)),
+            None => {
+                let car_clone = car.clone();
+                self.cars.insert(car.id, car);
+                return Ok(car_clone)
+            }
+        }
     }
 }
 
 fn list_cars(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
     println!("Listing cars...");
 
-//    let serialized = serde_json::to_string(&deserialized).unwrap();
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json")
         .body(""))
 }
 
 fn get_car(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Result<HttpResponse> {
-    let mut rng = rand::thread_rng();
-    let id: u32 = rng.gen_range(0, 100);
+    let id = req.match_info().get("id").unwrap();
     println!("Getting car {}...", id);
 
-//    let serialized = serde_json::to_string(&deserialized).unwrap();
+    let car_dao = req.state().clone();
+    let response_body: String;
+    match car_dao.lock().unwrap().get(&id.parse::<usize>().unwrap()) {
+        Ok(car) => {
+            response_body = serde_json::to_string(&car).unwrap();
+        },
+        Err(e) => {
+            response_body = e;
+        }
+    }
+
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json")
-        .body(""))
+        .body(response_body))
 }
 
 fn create_car_async(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-//    let mut car_dao: &mut CarDao = req.state();
     let mut rng = rand::thread_rng();
-    let id: u32 =  rng.gen_range(0, 100);
+    let id: usize =  rng.gen_range(0, 100);
     println!("Creating car {}...", id);
 
     let car_dao = req.state().clone();
@@ -80,15 +97,22 @@ fn create_car_async(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Box<Future<Item=Ht
         let body_string: &str = std::str::from_utf8(&body).unwrap();
         let car_request: CarRequest = serde_json::from_str(body_string).unwrap();
         let new_car: Car = Car {
-            id: id,
+            id,
             make: String::from(car_request.make),
             model: String::from(car_request.model),
             color: String::from(car_request.color),
             year: 40
         };
 
-        let response_body = serde_json::to_string(&new_car).unwrap();
-        car_dao.lock().unwrap().create(new_car);
+        let response_body: String;
+        match car_dao.lock().unwrap().create(new_car) {
+            Ok(car) => {
+                response_body = serde_json::to_string(&car).unwrap();
+            },
+            Err(e) => {
+                response_body = e;
+            }
+        }
 
         Ok(HttpResponse::build(StatusCode::OK)
             .content_type("application/json")

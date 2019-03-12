@@ -8,14 +8,14 @@ pub struct CarRequest {
     pub make: String,
     pub model: String,
     pub color: String,
-    pub year: u32
+    pub year: usize
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Car {
-    pub id: u32,
+    pub id: usize,
     pub make: String,
     pub model: String,
     pub color: String,
-    pub year: u32
+    pub year: usize
 }
