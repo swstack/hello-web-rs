@@ -1,8 +1,20 @@
 # Intro to Web stuff with Rust
 
-### Example App:
+## Example App:
 
-Simple "database" for car information.
+Simple in-memory RESTful interface for car information.
+
+### Run:
+
+```
+cargo run
+```
+
+### Test
+
+```
+cargo test
+```
 
 ### Endpoints:
 
