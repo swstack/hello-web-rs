@@ -21,9 +21,8 @@ use rand::Rng;
 
 use crate::models::car::{Car, CarRequest};
 use std::sync::{Arc, Mutex};
-use std::iter::Take;
 
-struct CarsIterator<'a> {
+pub struct CarsIterator<'a> {
     cars: Vec<&'a Car>,
     current: usize
 }
@@ -48,27 +47,31 @@ impl<'a> Iterator for CarsIterator<'a> {
     }
 }
 
-struct CarDao {
+pub struct CarDao {
     cars: HashMap<usize, Car>
 }
 
 impl CarDao {
-    fn get_all(&self) -> CarsIterator {
+    pub fn new(cars: HashMap<usize, Car>) -> CarDao {
+        return CarDao { cars }
+    }
+
+    pub fn get_all(&self) -> CarsIterator {
         let cars_vec: Vec<&Car> = self.cars.values().collect();
         let cars_iter = CarsIterator::new(cars_vec);
         return cars_iter
     }
 
-    fn delete() {}
+    pub fn delete() {}
 
-    fn get(&self, id: usize) -> Result<&Car, String> {
+    pub fn get(&self, id: usize) -> Result<&Car, String> {
         match self.cars.get(&id) {
             Some(car) => Ok(car),
             None => Err(format!("No car with id {}", id))
         }
     }
 
-    fn create(&mut self, car: Car) -> Result<Car, String> {
+    pub fn create(&mut self, car: Car) -> Result<Car, String> {
         match self.cars.get(&car.id) {
             Some(car) => Err(format!("Car id collision {}", &car.id)),
             None => {
@@ -158,10 +161,9 @@ fn create_car_async(req: &HttpRequest<Arc<Mutex<CarDao>>>) -> Box<Future<Item=Ht
 
 pub struct CarsApp {}
 
-
 impl CarsApp {
     pub fn start() {
-        let state  = Arc::new(Mutex::new(CarDao { cars: HashMap::new() }));
+        let state  = Arc::new(Mutex::new(CarDao::new(HashMap::new())));
         server::new(move || {
             App::with_state(state.clone())
                 .resource("/cars", |r| {
